@@ -110,12 +110,12 @@ def main(path, start_date: datetime):
     # Get a dataframe with id_patients and acceptance boolean
     patients_included_excluded = return_dataframe_of_accepted_patients(pat_tests, start_date, end_date, window, ratio_of_weeks)
     print('patients included excluded type:', type(patients_included_excluded))
-    print('new df keys:', patients_included_excluded.keys)
+    print('new df keys:', patients_included_excluded.keys())
 
     # Merge with the dataframe
     print('pat_tests type', type(pat_tests))
     pat_tests.merge(patients_included_excluded, how='inner', on='id_patients')
-    print('keys:', pat_tests.keys)
+    print('keys:', pat_tests.keys())
 
     # Number of patients included/excluded
     print(pat_tests.groupby(['meets_criteria'])['id_patients'].nunique())
