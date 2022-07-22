@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 from pandas import read_csv
 import datetime as dt
+import scipy.stats as stats
+import csv
 
 import my_functions as mf
 from my_functions import exclude_invalid_bmi
@@ -14,9 +16,15 @@ from my_functions import convert_df_date_series
 from my_functions import assessment_frequency_criteria
 from my_functions import return_dataframe_of_accepted_patients
 from my_functions import print_before_after_summary
+from my_functions import print_summary
+from my_functions import compare_freq_around_policy_change
+from my_functions import compare_median_freq_around_policy_change
+from my_functions import return_df_assessments_tests_daily
+from my_functions import plot_daily_assess_tests
+from my_functions import demographic_info
+from my_functions import write_df_to_csv
 
 print('imports complete')
-
 
 def main(path, start_date: datetime):
     print('running')
@@ -24,6 +32,9 @@ def main(path, start_date: datetime):
 
     # Import the tests csv file into a dataframe
     pat_tests = pd.read_csv(path)
+
+    # Create a smaller version for testing with
+    # pat_tests = pat_tests.iloc[:50]
 
     # Print some basic info (need more!)
     print('Total assessments_tests:', len(pat_tests))
@@ -101,6 +112,11 @@ def main(path, start_date: datetime):
     patients_assessing_after_free = assessments_after_free['id_patients'].nunique()
     print('Patients providing assessments after free:', patients_assessing_after_free)
 
+    #####
+    # Sliding window assessment
+    # Commented out until working
+    #####
+
     # Apply sliding window inclusion criteria
     start_date = datetime.date(2022,1,1)
     end_date = datetime.date(2022,5,23)
@@ -112,16 +128,16 @@ def main(path, start_date: datetime):
     print('patients included excluded type:', type(patients_included_excluded))
     print('new df keys:', patients_included_excluded.keys())
 
-    # Merge with the dataframe
+    # Merge with the existing dataframe
     print('pat_tests type', type(pat_tests))
-    pat_tests.merge(patients_included_excluded, how='inner', on='id_patients')
-    print('keys:', pat_tests.keys())
+    pat_tests_with_inclusion = pat_tests.merge(patients_included_excluded, how='inner', on='id_patients')
+    print('keys:', pat_tests_with_inclusion.keys())
 
     # Number of patients included/excluded
-    print(pat_tests.groupby(['meets_criteria'])['id_patients'].nunique())
+    print(pat_tests_with_inclusion.groupby(['meets_criteria'])['id_patients'].nunique().sum())
 
     # Exclude patients who don't meet criteria
-    pat_tests = pat_tests[pat_tests['meets_criteria'] == True]
+    pat_tests = pat_tests_with_inclusion[pat_tests_with_inclusion['meets_criteria'] == True]
     unique_patients_frequent = pat_tests['id_patients'].nunique()
     unique_assessments_frequent = pat_tests.groupby('id_patients')['created_at_assessments'].nunique().sum()
     print('After dropping infrequent contributors:')
@@ -132,17 +148,135 @@ def main(path, start_date: datetime):
     print('For included patients:')
     print_before_after_summary(pat_tests)
 
+    ####
+    # Above: sliding window
+    ####
+
+    # Add in the countries data (mapping to lsoa11cd)
+    country_mapping = pd.read_csv('/nvme1_mounts/nvme1lv02/coneill/project_v4/countries_csv.csv')
+    # Edit the lsoa11cd string in original dataframe
+    pat_tests['lsoa11cd_str'] = pat_tests['lsoa11cd'].apply(lambda x: x[2:-1])
+    # pat_tests_with_country = pat_tests_with_inclusion.merge(country_mapping, how='inner', on='lsoa11cd')
+    pat_tests_with_country = pat_tests.merge(country_mapping, how='inner', left_on='lsoa11cd_str', right_on='lsoa11cd')
+    # Tidy up by removing surplus lsoa... columns
+    pat_tests_with_country = pat_tests_with_country.drop(columns=['lsoa11cd_x', 'lsoa11cd_y'])
+    pat_tests_with_country = pat_tests_with_country.rename(columns={"lsoa11cd_str": "lsoa11cd"})
+
+
+    # Overall numbers in each country
+    pat_tests_england = pat_tests_with_country[(pat_tests_with_country['country'] == 'England')]
+    pat_tests_wales = pat_tests_with_country[pat_tests_with_country['country'] == 'Wales']
+    pat_tests_scotland = pat_tests_with_country[pat_tests_with_country['country'] == 'Scotland']
+    pat_tests_n_ireland = pat_tests_with_country[pat_tests_with_country['country'] == 'Northern Ireland']
+
+    print_summary(pat_tests_england, df_name='England')
+    print_summary(pat_tests_wales, df_name='Wales')
+    print_summary(pat_tests_scotland, df_name='Scotland')
+    print_summary(pat_tests_n_ireland, df_name='Northern Ireland')
+
+    # Explore England before and after policy change
+    print('England only data summary:')
+    print_before_after_summary(pat_tests_england)
+
+    # Compare frequency histograms before vs after
+    
+    england_patients_mean = compare_freq_around_policy_change(dataframe=pat_tests_england,
+                                      start_date = datetime.date(2022,2,1),
+                                      end_date = datetime.date(2022,5,23),
+                                      policy_change_date = datetime.date(2022,4,1))
+
+    england_patients_median = compare_median_freq_around_policy_change(dataframe=pat_tests_england,
+                                                              start_date=datetime.date(2022, 2, 1),
+                                                              end_date=datetime.date(2022, 5, 23),
+                                                              policy_change_date=datetime.date(2022, 4, 1))
+
+    # Fill NaNs with 0... as NaNs appear when patients have not done a single test
+    england_patients_mean = england_patients_mean.fillna(0)
+    england_patients_median = england_patients_median.fillna(0)
+
+    print(england_patients_mean)
+    print(england_patients_median)
+
+    # Plot a histogram comparing frequency distributions
+    england_patients_mean.plot.hist(bins=10, alpha=0.5)
+    england_patients_median.plot.hist(bins=10, alpha=0.5)
+
+    plt.show()
+
+    stat, pvalue = stats.wilcoxon(england_patients_mean['mean_before'], england_patients_mean['mean_after'])
+    # could try feeding with .values ... effectively feeds as an array
+
+    print('Mean averages:')
+    print('Statistic:', stat)
+    print('P-value:', pvalue)
+
+    stat_med, pvalue_med = stats.wilcoxon(england_patients_median['median_before'], england_patients_median['median_after'])
+
+    print('Median averages:')
+    print('Statistic:', stat_med)
+    print('P-value:', pvalue_med)
+
+    # Assess overall assessments and tests for the period (in England)
+    assess_tests_england_daily = return_df_assessments_tests_daily(pat_tests_england)
+    fig = plot_daily_assess_tests(assess_tests_england_daily, country="England")
+    fig.show()
+
+    # Assess overall assessments and tests for the period (in Scotland)
+    assess_tests_scotland_daily = return_df_assessments_tests_daily(pat_tests_scotland)
+    fig = plot_daily_assess_tests(assess_tests_scotland_daily, country="Scotland")
+    fig.show()
+
+    # Merge daily ratios for all the countries
+    assess_tests_wales_daily = return_df_assessments_tests_daily(pat_tests_wales)
+    assess_tests_ni_daily = return_df_assessments_tests_daily(pat_tests_n_ireland)
+    tests_assessments_ratios = assess_tests_england_daily.merge(assess_tests_scotland_daily,
+                                                               how='inner', on='date', suffixes=('_eng', '_sco'))
+    tests_assessments_ratios = tests_assessments_ratios.merge(assess_tests_wales_daily,
+                                                              how='inner', on='date')
+    tests_assessments_ratios = tests_assessments_ratios.filter(columns = ['date', 'ratio_eng', 'ratio_sco', 'ratio'])
+    tests_assessments_ratios = tests_assessments_ratios.rename({'ratio':'ratio_wal'})
+    tests_assessments_ratios = tests_assessments_ratios.merge(assess_tests_ni_daily,
+                                                              how='inner', on='date')
+    tests_assessments_ratios = tests_assessments_ratios.filter(columns=['date', 'ratio_eng', 'ratio_sco',
+                                                                        'ratio_wal', 'ratio'])
+    tests_assessments_ratios = tests_assessments_ratios.rename({'ratio': 'ratio_ni'})
+
+
+
+
     # Look at proportions of healthcare workers
     # Look at proportion of asthmatics, high BMI, diabetics, chemotherapy patients
+    # Normalising the rate of change per individual
+
+    counts_df, chemo_df, contact_df, asthmatics_df, bmi_df, gender_df = demographic_info(pat_tests_england)
+    print(counts_df)
+    print(chemo_df)
+    print(asthmatics_df)
+    print(bmi_df)
+    print(gender_df)
+
+    # Write the dataframe of patients/assessments/tests meeting acceptance criteria to file
+    write_df_to_csv(pat_tests_england, 'pat_tests_england_a.csv')
+    write_df_to_csv(pat_tests_scotland, 'pat_tests_scotland_a.csv')
+    write_df_to_csv(pat_tests_wales, 'pat_tests_wales_a.csv')
+    write_df_to_csv(pat_tests_n_ireland, 'pat_tests_ni_a.csv')
+
+    # pat_tests_acceptance = pat_tests_england
+    # columns = pat_tests_acceptance.columns
+    # values = pat_tests_acceptance.values
+    # filename = 'pat_tests_england.csv'
+    #
+    # with open(filename, 'w') as csvfile:
+    #     writer = csv.writer(csvfile)
+    #     writer.writerow(columns)
+    #     writer.writerows(values)
 
 
-def correlation_matrix(df):
-    # Print a spearman correlation matrix
-    corr_matrix = df.corr(method = 'spearman')
-    print(corr_matrix)
-    print('done')
-    return corr_matrix
+
+    print('file saved')
 
 if __name__ == '__main__':
-    main('/nvme1_mounts/nvme1lv02/coneill/data.csv',
+    main(#'/nvme1_mounts/nvme1lv02/coneill/data.csv',
+         #'/nvme1_mounts/nvme1lv02/coneill/project_v4/pat_tests_truncated',
+         '/nvme1_mounts/nvme1lv02/coneill/project_v4/data_05_30_a.csv',
          start_date = datetime.date(2022, 2, 1))
