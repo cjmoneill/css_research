@@ -825,35 +825,36 @@ def plot_grid_search(cv_results, grid_param_1, grid_param_2, name_param_1, name_
     ax.grid('on')
 
 def plot_search_results(grid):
-    """
-    Params:
-        grid: A trained GridSearchCV object.
-    """
+    """Plot search results when supplying a trained GridSearchCV object"""
+
     ## Results from grid search
     results = grid.cv_results_
+    print(results)
     means_test = results['mean_test_score']
     stds_test = results['std_test_score']
     # means_train = results['mean_train_score']
     # stds_train = results['std_train_score']
 
-    ## Getting indexes of values per hyper-parameter
+    ## Get indexes of values per hyper-parameter
+    masks_names = list(grid.best_params_.keys())
+    print('best params items:', grid.best_params_.items() )
     masks=[]
-    masks_names= list(grid.best_params_.keys())
     for p_k, p_v in grid.best_params_.items():
         masks.append(list(results['param_'+p_k].data==p_v))
 
-    params=grid.param_grid
-    print(masks_names)
-    print(params)
+    params = grid.param_grid
+    print('mask names:', masks_names)
+    print('params:', params)
+    print('len params:', len(params))
 
-    ## Ploting results
+    ## Plotting results
     fig, ax = plt.subplots(1,len(params),sharex='none', sharey='all',figsize=(20,5))
     fig.suptitle('Score per parameter')
     fig.text(0.04, 0.5, 'MEAN SCORE', va='center', rotation='vertical')
-    pram_preformace_in_best = {}
+    pram_performance_in_best = {}
     for i, p in enumerate(masks_names):
         m = np.stack(masks[:i] + masks[i+1:])
-        # pram_preformace_in_best
+        pram_performance_in_best
         best_parms_mask = m.all(axis=0)
         best_index = np.where(best_parms_mask)[0]
         x = np.array(params[p])
