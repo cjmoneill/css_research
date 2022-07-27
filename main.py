@@ -9,7 +9,6 @@ import datetime as dt
 import scipy.stats as stats
 import csv
 
-import my_functions as mf
 from my_functions import exclude_invalid_bmi
 from my_functions import convert_df_dates
 from my_functions import convert_df_date_series
@@ -36,7 +35,7 @@ def main(path, start_date: datetime):
     # Create a smaller version for testing with
     # pat_tests = pat_tests.iloc[:50]
 
-    # Print some basic info (need more!)
+    # Print some basic info
     print('Total assessments_tests:', len(pat_tests))
     unique_patients_initial = pat_tests['id_patients'].nunique()
     unique_patients_assessments = pat_tests.groupby('id_patients')['created_at_assessments'].nunique().sum()
