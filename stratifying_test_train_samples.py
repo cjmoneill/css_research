@@ -53,10 +53,6 @@ def main(path, start_date, end_date, policy_change_date):
     create_stratified_test_sample(dataframe_merged, required_ages, required_genders, required_hw,
                                                 required_precs, required_bmi, required_targets)
 
-    create_stratified_test_sample(dataframe_merged, required_ages, required_genders,required_hw,
-                                                    required_precs, required_bmi, required_targets)
-
-
 
 
 
