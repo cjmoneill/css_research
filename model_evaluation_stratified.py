@@ -90,9 +90,9 @@ def main(train, test, start_date, end_date, policy_change_date):
     max_depth = [int(x) for x in np.linspace(10, 110, num = 11)]
     max_depth.append(None)
     # Minimum number of samples to split a node
-    min_samples_split = [2, 10]
+    min_samples_split = [2, 5, 10]
     # Minimum number of samples required at each leaf node
-    min_samples_leaf = [2, 10]
+    min_samples_leaf = [2, 5, 10]
     # Method of selecting samples
     bootstrap = [True, False]
 
