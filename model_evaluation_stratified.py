@@ -78,7 +78,7 @@ def main(train, test, start_date, end_date, policy_change_date):
     ### Random forest classifier
 
     print('Random forest classifier')
-    rnd_clf = RandomForestClassifier(random_state=42)
+    rnd_clf = RandomForestClassifier(class_weight='balanced', random_state=42)
 
     # Training performance
 
