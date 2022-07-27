@@ -83,18 +83,18 @@ def main(train, test, start_date, end_date, policy_change_date):
     # Training performance
 
     # Number of trees in the random forest
-    estimators = [10,100]#500]
+    estimators = [10] #100, 250]
     # Criterion
-    criterion = ["gini"]
+    criterion = ["gini", "entropy", "log_loss"]
     # Number of features at every split
     max_features = ['sqrt', 'log2']
     # Maximum number of levels in a tree
     max_depth = [int(x) for x in np.linspace(10, 110, num = 11)]
-    max_depth.append(None)
+    max_depth.append(0)
     # Minimum number of samples to split a node
-    min_samples_split = [2, 5, 10]
+    min_samples_split = [2]# 5, 10]
     # Minimum number of samples required at each leaf node
-    min_samples_leaf = [2, 5, 10]
+    min_samples_leaf = [2]# 5, 10]
     # Method of selecting samples
     bootstrap = [True, False]
 
@@ -136,7 +136,7 @@ def main(train, test, start_date, end_date, policy_change_date):
     print('roc_auc_score for classifier: ', roc_auc_score(y_test, y_score))
 
     plt.subplots(1, figsize=(10, 10))
-    plt.title('Receiver Operating Characteristic - DecisionTree')
+    plt.title('Receiver Operating Characteristic')
     plt.plot(false_positive_rate, true_positive_rate)
     plt.plot([0, 1], ls="--")
     plt.plot([0, 0], [1, 0], c=".7"), plt.plot([1, 1], c=".7")
@@ -146,7 +146,7 @@ def main(train, test, start_date, end_date, policy_change_date):
 
     # Calculate Youden's J Statistic
     # J = sensitivity + specificity - 1
-    y_pred = tuned_rnd_clf.predict(y_test)
+    y_pred = tuned_rnd_clf.predict(X_test)
     conf_matrix = confusion_matrix(y_test, y_pred)
     true_neg = conf_matrix[0][0]
     false_neg = conf_matrix[1][0]
