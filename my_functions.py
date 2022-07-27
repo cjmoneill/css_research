@@ -10,6 +10,10 @@ import csv
 from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import cross_val_predict
 from sklearn.metrics import recall_score
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import ConfusionMatrixDisplay
+
 
 # Remove instances where BMI <10 or >95
 def exclude_invalid_bmi(df):
@@ -505,6 +509,12 @@ def convert_boolean(x):
   elif x == True:
     return int(1)
 
+def convert_nan_to_zero(x):
+    if x == '[nan]':
+        return int(0)
+    elif x == '[NaN]':
+        return int(0)
+
 def features_dataframe(dataframe):
     """Will take a dataframe and extract values for each patient to feed into
     a model"""
@@ -529,7 +539,10 @@ def features_dataframe(dataframe):
     # Add contact worker status
     health_worker = dataframe.groupby('id_patients')['contact_health_worker'].unique()
     health_worker = pd.DataFrame(health_worker)
-    health_worker['health_worker_status'] = health_worker['contact_health_worker']#.apply(lambda x: convert_boolean(x))
+    health_worker['health_worker_status'] = health_worker['contact_health_worker'].apply(lambda x: convert_boolean(x))
+    health_worker['health_worker_status_updated'] = health_worker.health_worker_status.replace('nan', 0)
+
+    # health_worker['health_worker_status'] = health_worker['contact_health_worker'].apply(lambda x: convert_nan_to_zero(x))
     health_worker = health_worker.reset_index()
     health_worker = health_worker.drop(columns=['contact_health_worker'])
     df = df.merge(health_worker, how="inner", on='id_patients')
@@ -577,18 +590,17 @@ def features_dataframe(dataframe):
 
     return df
 
-
-def EvaluatePerformance(model, X, y, modeltitle:str, test_or_train:str):
+def EvaluatePerformance(model, X, y, modeltitle:str):
     "A function to evaluate the performance of a model on the training data, taking the model,"
     "and a title for the model as arguments, and printing cross validated accuracy"
     "sensitivity, specificity and mean recall"
 
-    print('{} performance'.format(modeltitle) + ' ' + 'on {} data:'.format(test_or_train))
+    print('{} performance'.format(modeltitle))
 
-    scores = cross_val_score(model, X, y, cv=5)
-    print('Accuracy: ', round(scores.mean(), 2))
+    y_pred = model.predict(X)
 
-    y_pred = cross_val_predict(model, X, y)
+    accuracy = accuracy_score(y,y_pred)
+    print('accuracy: ', round(accuracy, 2))
 
     sensitivity = recall_score(y, y_pred, pos_label=1)
     print('Sensitivity: ', round(sensitivity, 2))
@@ -598,6 +610,34 @@ def EvaluatePerformance(model, X, y, modeltitle:str, test_or_train:str):
 
     mean_recall = recall_score(y, y_pred, average='macro')
     print('Mean recall: ', round(mean_recall, 2))
+
+
+def EvaluatePerformanceCV(model, X, y, modeltitle:str):
+    "A function to evaluate the performance of a model on the training data, taking the model,"
+    "and a title for the model as arguments, and printing cross validated accuracy"
+    "sensitivity, specificity and mean recall"
+
+    print('{} performance'.format(modeltitle) + ' with cross validation')
+
+    y_pred = cross_val_predict(model, X, y)
+
+    accuracy = accuracy_score(y,y_pred)
+    print('accuracy: ', round(accuracy, 2))
+
+    sensitivity = recall_score(y, y_pred, pos_label=1)
+    print('Sensitivity: ', round(sensitivity, 2))
+
+    specificity = recall_score(y, y_pred, pos_label=0)
+    print('Specificity: ', round(specificity, 2))
+
+    mean_recall = recall_score(y, y_pred, average='macro')
+    print('Mean recall: ', round(mean_recall, 2))
+
+    matrix = confusion_matrix(y, y_pred)
+    display_matrix = ConfusionMatrixDisplay(confusion_matrix=matrix,
+                                            display_labels=model.classes_)
+    display_matrix.plot()
+    plt.show()
 
 
 def write_df_to_csv(dataframe, filename:str):
@@ -761,3 +801,69 @@ def create_stratified_test_sample(dataframe,
       create_stratified_test_sample(dataframe, required_ages, required_genders,
                                     required_hw, required_precs, required_bmi, required_target)
 
+
+def plot_grid_search(cv_results, grid_param_1, grid_param_2, name_param_1, name_param_2):
+
+    # Get Test Scores Mean and std for each grid search
+    scores_mean = cv_results['mean_test_score']
+    scores_mean = np.array(scores_mean).reshape(len(grid_param_2),len(grid_param_1))
+
+    scores_sd = cv_results['std_test_score']
+    scores_sd = np.array(scores_sd).reshape(len(grid_param_2),len(grid_param_1))
+
+    # Plot Grid search scores
+    _, ax = plt.subplots(1,1)
+
+    # Param1 is the X-axis, Param 2 is represented as a different curve (color line)
+    for idx, val in enumerate(grid_param_2):
+        ax.plot(grid_param_1, scores_mean[idx,:], '-o', label= name_param_2 + ': ' + str(val))
+
+    ax.set_title("Grid Search Scores", fontsize=20, fontweight='bold')
+    ax.set_xlabel(name_param_1, fontsize=16)
+    ax.set_ylabel('CV Average Score', fontsize=16)
+    ax.legend(loc="best", fontsize=15)
+    ax.grid('on')
+
+def plot_search_results(grid):
+    """
+    Params:
+        grid: A trained GridSearchCV object.
+    """
+    ## Results from grid search
+    results = grid.cv_results_
+    means_test = results['mean_test_score']
+    stds_test = results['std_test_score']
+    # means_train = results['mean_train_score']
+    # stds_train = results['std_train_score']
+
+    ## Getting indexes of values per hyper-parameter
+    masks=[]
+    masks_names= list(grid.best_params_.keys())
+    for p_k, p_v in grid.best_params_.items():
+        masks.append(list(results['param_'+p_k].data==p_v))
+
+    params=grid.param_grid
+    print(masks_names)
+    print(params)
+
+    ## Ploting results
+    fig, ax = plt.subplots(1,len(params),sharex='none', sharey='all',figsize=(20,5))
+    fig.suptitle('Score per parameter')
+    fig.text(0.04, 0.5, 'MEAN SCORE', va='center', rotation='vertical')
+    pram_preformace_in_best = {}
+    for i, p in enumerate(masks_names):
+        m = np.stack(masks[:i] + masks[i+1:])
+        # pram_preformace_in_best
+        best_parms_mask = m.all(axis=0)
+        best_index = np.where(best_parms_mask)[0]
+        x = np.array(params[p])
+        y_1 = np.array(means_test[best_index])
+        e_1 = np.array(stds_test[best_index])
+        # y_2 = np.array(means_train[best_index])
+        # e_2 = np.array(stds_train[best_index])
+        ax[i].errorbar(x, y_1, e_1, linestyle='--', marker='o', label='train')
+        # ax[i].errorbar(x, y_2, e_2, linestyle='-', marker='^',label='train' )
+        ax[i].set_xlabel(p.upper())
+
+    plt.legend()
+    plt.show()
