@@ -1,11 +1,13 @@
 import datetime
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import GridSearchCV
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import roc_curve, roc_auc_score
 
 from my_functions import convert_df_dates
 from my_functions import compare_tests_around_policy_change
@@ -81,7 +83,7 @@ def main(train, test, start_date, end_date, policy_change_date):
     # Training performance
 
     # Number of trees in the random forest
-    estimators = [10,100]
+    estimators = [10,100,500]
     # Criterion
     criterion = ["gini"]
     # Number of features at every split
@@ -121,9 +123,22 @@ def main(train, test, start_date, end_date, policy_change_date):
     EvaluatePerformanceCV(tuned_rnd_clf, X_train, y_train, modeltitle="Random forest classifier")
 
     # Selecting features from model
-
     selected_features = tuned_rnd_clf.feature_importances_
     print(selected_features)
+
+    # ROC AUC
+    y_score = tuned_rnd_clf.predict_proba(X_test)[:,1]
+    false_positive_rate, true_positive_rate, threshold = roc_curve(y_test, y_score)
+    print('roc_auc_score for classifier: ', roc_auc_score(y_test, y_score))
+
+    plt.subplots(1, figsize=(10, 10))
+    plt.title('Receiver Operating Characteristic - DecisionTree')
+    plt.plot(false_positive_rate, true_positive_rate)
+    plt.plot([0, 1], ls="--")
+    plt.plot([0, 0], [1, 0], c=".7"), plt.plot([1, 1], c=".7")
+    plt.ylabel('True Positive Rate')
+    plt.xlabel('False Positive Rate')
+    plt.show()
 
     # Comparing performance
     plot_search_results(rnd_grid)
