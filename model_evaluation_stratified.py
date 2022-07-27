@@ -7,7 +7,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import GridSearchCV
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import roc_curve, roc_auc_score
+from sklearn.metrics import roc_curve, roc_auc_score, confusion_matrix
 
 from my_functions import convert_df_dates
 from my_functions import compare_tests_around_policy_change
@@ -83,7 +83,7 @@ def main(train, test, start_date, end_date, policy_change_date):
     # Training performance
 
     # Number of trees in the random forest
-    estimators = [10,100,500]
+    estimators = [10,100]#500]
     # Criterion
     criterion = ["gini"]
     # Number of features at every split
@@ -126,6 +126,10 @@ def main(train, test, start_date, end_date, policy_change_date):
     selected_features = tuned_rnd_clf.feature_importances_
     print(selected_features)
 
+    # Evaluate on test data
+    print('Performance on test data:')
+    EvaluatePerformance(tuned_rnd_clf, X_test, y_test, modeltitle="Random forest classifier")
+
     # ROC AUC
     y_score = tuned_rnd_clf.predict_proba(X_test)[:,1]
     false_positive_rate, true_positive_rate, threshold = roc_curve(y_test, y_score)
@@ -140,7 +144,20 @@ def main(train, test, start_date, end_date, policy_change_date):
     plt.xlabel('False Positive Rate')
     plt.show()
 
-    # Comparing performance
+    # Calculate Youden's J Statistic
+    # J = sensitivity + specificity - 1
+    y_pred = tuned_rnd_clf.predict(y_test)
+    conf_matrix = confusion_matrix(y_test, y_pred)
+    true_neg = conf_matrix[0][0]
+    false_neg = conf_matrix[1][0]
+    true_pos = conf_matrix[1][1]
+    false_pos = conf_matrix[0][1]
+
+    youden_j = (true_pos / (true_pos + false_neg)) + (true_neg / (true_neg + false_pos)) - 1
+    print('Youden J statistic:', youden_j)
+
+
+    # Visualise comparative performance
     plot_search_results(rnd_grid)
 
 
