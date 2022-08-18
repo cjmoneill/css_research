@@ -1,5 +1,5 @@
 # css_research
-Code for covid symptom study research project (Healthcare Technologies MRes)
+Code for covid symptom study research project (completed as part of my Healthcare Technologies MRes at King's College London)
 
 Script descriptions:
 
